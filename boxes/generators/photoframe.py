@@ -47,6 +47,7 @@ class Dimensions:
     frame_overlap: float
     split_front_param: bool
     split_middle_param: bool
+    split_base_param: bool
     guide_fudge: float = 2.0
 
     def __post_init__(self):
@@ -211,6 +212,14 @@ class Dimensions:
         return self.base_y / 2
 
     @property
+    def split_base(self):
+        return self.split_base_param
+
+    @property
+    def unsplit_base(self):
+        return not self.split_base_param
+
+    @property
     def split_middle(self):
         return self.split_middle_param
 
@@ -361,6 +370,7 @@ interesting in the last 2mm of a photo anyway.
     glass_h = 0
     frame_w = 20.0
     frame_overlap = 5.0
+    split_base = False
     split_middle = True  # not exposed in the UI
     split_front = True
     mount_hole_dia = 6.0
@@ -385,6 +395,7 @@ interesting in the last 2mm of a photo anyway.
             glass_h=self.glass_h,
             frame_w=self.frame_w,
             frame_overlap=self.frame_overlap,
+            split_base_param=self.split_base,
             split_middle_param=self.split_middle,
             split_front_param=self.split_front,
             guide_fudge=self.guide_fudge,
@@ -477,6 +488,7 @@ interesting in the last 2mm of a photo anyway.
         logger.debug(f"Matting width: {matting_width:.1f}")
         logger.debug(f"Ratio: {ratio:.2f}")
 
+    # FRONT LAYER
     def render_front(self):
         if self.d.unsplit_front:
             self.front_unsplit()
@@ -511,7 +523,68 @@ interesting in the last 2mm of a photo anyway.
             label = f"{lyr} side {bit} {d.frame_w:.0f}x{d.base_y:.0f}"
             self.polygonWall(sides, "eDeD", move="up", label=label)
 
+    # BASE LAYER
     def render_base(self):
+        if self.d.unsplit_base:
+            self.base_unsplit()
+
+        if self.d.split_base:
+            self.base_split()
+
+    def base_split(self):
+        lyr = "Base"
+        d = self.d
+        label = f"{lyr} (split) {d.base_x:.0f}x{d.base_y:.0f} for photo {d.photo_x:.0f}x{d.photo_y:.0f}"
+
+        # START SPLIT
+        # ** THICK BASE **
+        # new_frame_h = d.frame_h + d.frame_overlap + d.matting_h
+        # new_frame_w = d.frame_w + d.frame_overlap + d.matting_w
+        # ** MEDIUM BASE **
+        # new_frame_h = d.frame_h + d.matting_h
+        # new_frame_w = d.frame_w + d.matting_w
+        # ** THIN BASE **
+        new_frame_h = d.frame_h + d.frame_overlap
+        new_frame_w = d.frame_w + d.frame_overlap
+
+        hypo_h = math.sqrt(2 * new_frame_h**2)
+        hypo_w = math.sqrt(2 * new_frame_w**2)
+
+        tops = [d.base_x, 90 + 45, hypo_h, 90 - 45, d.base_x - 2 * new_frame_h, 90 - 45, hypo_h, None]
+        sides = [d.base_y, 90 + 45, hypo_w, 90 - 45, d.base_y - 2 * new_frame_w, 90 - 45, hypo_w, None]
+
+        # Log values
+        logger.debug("======")
+        logger.debug(f"frame_h: {d.frame_h}")
+        logger.debug(f"frame_overlap: {d.frame_overlap}")
+        logger.debug(f"new_frame_h: {new_frame_h}")
+        logger.debug(f"hypo_h: {hypo_h}")
+        logger.debug("======")
+        logger.debug(f"frame_w: {d.frame_w}")
+        logger.debug(f"frame_overlap: {d.frame_overlap}")
+        logger.debug(f"new_frame_w: {new_frame_w}")
+        logger.debug(f"hypo_w: {hypo_h}")
+        logger.debug("======")
+        logger.debug(f"base_x: {d.base_x}")
+        logger.debug(f"base_y: {d.base_y}")
+        logger.debug("======")
+        logger.debug(f"photo_x: {d.photo_x}")
+        logger.debug(f"photo_y: {d.photo_y}")
+        logger.debug("======")
+        logger.debug(f"tops: {tops}")
+        logger.debug(f"sides: {sides}")
+        logger.debug("======")
+
+        for bit in ("top", "btm"):
+            label = f"{lyr} {bit} {d.base_x:.0f}x{new_frame_h:.0f}"
+            self.polygonWall(tops, "eded", move="up", label=label)
+
+        for bit in "LR":
+            label = f"{lyr} side {bit} {new_frame_w:.0f}x{d.base_y:.0f}"
+            self.polygonWall(sides, "eDeD", move="up", label=label)
+        # END SPLIT
+
+    def base_unsplit(self):
         d = self.d
         label = f"Base {d.base_x:.0f}x{d.base_y:.0f} for photo {d.photo_x:.0f}x{d.photo_y:.0f}"
 
@@ -642,6 +715,20 @@ interesting in the last 2mm of a photo anyway.
             type=BoolArg(),
             default=self.split_front,
             help="Split front into thin rectangles to save material",
+        )
+        # self.argparser.add_argument(
+        #     "--split_middle",
+        #     action="store",
+        #     type=BoolArg(),
+        #     default=self.split_middle,
+        #     help="Split middle into thin rectangles to save material",
+        # )
+        self.argparser.add_argument(
+            "--split_base",
+            action="store",
+            type=BoolArg(),
+            default=self.split_base,
+            help="Split base into thin rectangles to save material. Useful if you are attaching the photo to the matting",
         )
 
     def render_photo(self):
