@@ -17,7 +17,7 @@ import logging
 import math
 from dataclasses import dataclass, fields
 
-from boxes import BoolArg, Boxes, Color, edges
+from boxes import Boxes, Color, edges
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class Dimensions:
     window_y: float
     outside_x: float
     outside_y: float
-    frame_overlap: float
+    base_thickness: float
     guide_fudge: float = 2.0
 
     def __post_init__(self):
@@ -65,24 +65,24 @@ class Dimensions:
         return self.outside_y
 
     @property
-    def back_window_x(self):
-        """Width of the window in the back/base layer (reduced to contain art piece)"""
-        return self.art_piece_x - 2 * self.frame_overlap
-
-    @property
-    def back_window_y(self):
-        """Height of the window in the back/base layer (reduced to contain art piece)"""
-        return self.art_piece_y - 2 * self.frame_overlap
-
-    @property
     def back_frame_w(self):
         """Width of the frame border on sides for back/base layer"""
-        return (self.outside_x - self.back_window_x) / 2
+        return self.base_thickness
 
     @property
     def back_frame_h(self):
         """Height of the frame border on top/bottom for back/base layer"""
-        return (self.outside_y - self.back_window_y) / 2
+        return self.base_thickness
+
+    @property
+    def back_window_x(self):
+        """Width of the window in the back/base layer"""
+        return self.outside_x - 2 * self.base_thickness
+
+    @property
+    def back_window_y(self):
+        """Height of the window in the back/base layer"""
+        return self.outside_y - 2 * self.base_thickness
 
     @property
     def pocket_x(self):
@@ -124,7 +124,7 @@ class Dimensions:
         outside_info = f"Outside dimensions: {self.outside_x:.0f} x {self.outside_y:.0f}"
         frame_info = f"Frame border: {self.frame_w:.0f} x {self.frame_h:.0f}"
         back_window_info = f"Back window: {self.back_window_x:.0f} x {self.back_window_y:.0f}"
-        back_frame_info = f"Back frame border: {self.back_frame_w:.0f} x {self.back_frame_h:.0f}"
+        back_frame_info = f"Back frame border (base thickness): {self.back_frame_w:.0f}"
         pocket_info = f"Pocket for art: {self.pocket_x:.0f} x {self.pocket_y:.0f} (fudge {self.guide_fudge:.0f})"
 
         info = [
@@ -157,6 +157,10 @@ class Dimensions:
             issues.append(f"Window width {self.window_x:.0f} cannot be larger than outside width {self.outside_x:.0f}")
         if self.window_y > self.outside_y:
             issues.append(f"Window height {self.window_y:.0f} cannot be larger than outside height {self.outside_y:.0f}")
+        if self.window_x > self.art_piece_x:
+            issues.append(f"Window width {self.window_x:.0f} cannot be larger than art piece width {self.art_piece_x:.0f}")
+        if self.window_y > self.art_piece_y:
+            issues.append(f"Window height {self.window_y:.0f} cannot be larger than art piece height {self.art_piece_y:.0f}")
         if self.back_window_x > self.outside_x:
             issues.append(f"Back window width {self.back_window_x:.0f} cannot be larger than outside width {self.outside_x:.0f}")
         if self.back_window_y > self.outside_y:
@@ -201,7 +205,7 @@ Features:
     window_y = 140
     outside_x = 130
     outside_y = 180
-    frame_overlap = 5.0
+    base_thickness = 15.0
     mount_hole_dia = 6.0
     guide_fudge = 2.0
 
@@ -220,7 +224,7 @@ Features:
             window_y=self.window_y,
             outside_x=self.outside_x,
             outside_y=self.outside_y,
-            frame_overlap=self.frame_overlap,
+            base_thickness=self.base_thickness,
             guide_fudge=self.guide_fudge,
         )
 
@@ -377,11 +381,11 @@ Features:
             help="Total outside height of the frame",
         )
         self.argparser.add_argument(
-            "--frame_overlap",
+            "--base_thickness",
             action="store",
             type=float,
-            default=self.frame_overlap,
-            help="Frame overlap for back window reduction to contain art piece",
+            default=self.base_thickness,
+            help="Thickness (width) of the base layer pieces",
         )
         self.argparser.add_argument(
             "--guide_fudge",

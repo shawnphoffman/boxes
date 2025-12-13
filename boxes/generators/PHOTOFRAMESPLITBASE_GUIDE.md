@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Photo Frame Split Base generator creates a 3-layer photo frame with simplified measurements. It generates laser-cuttable pieces that can be assembled into a frame to display artwork. The generator supports splitting the front and base layers into puzzle-like pieces to save material.
+The Photo Frame Split Base generator creates a 3-layer photo frame with simplified measurements. It generates laser-cuttable pieces that can be assembled into a frame to display artwork. The front and base layers are always split into puzzle-like pieces to save material.
 
 ## Input Parameters
 
@@ -36,15 +36,20 @@ These three sets of measurements define your frame:
 
 ### Advanced Parameters
 
-#### 4. Frame Overlap
-- **`frame_overlap`** (default: 5.0mm): Amount by which the back window is reduced to ensure the art piece is contained
+#### 4. Base Thickness
+- **`base_thickness`** (default: 15.0mm): Width/thickness of the base layer pieces
 
-**How it works:** The back/base layer has a smaller window than the front. This window is calculated as:
-- `back_window_x = art_piece_x - 2 × frame_overlap`
-- `back_window_y = art_piece_y - 2 × frame_overlap`
+**How it works:** The base layer pieces have a specified thickness. The back window is calculated from the outside dimensions:
+- `back_window_x = outside_x - 2 × base_thickness`
+- `back_window_y = outside_y - 2 × base_thickness`
+- `back_frame_w = base_thickness` (side borders)
+- `back_frame_h = base_thickness` (top/bottom borders)
 
-**Example:** With `frame_overlap = 5mm` and `art_piece_x = 110mm`:
-- `back_window_x = 110mm - 2 × 5mm = 100mm`
+**Example:** With `base_thickness = 15mm`, `outside_x = 130mm`, and `outside_y = 180mm`:
+- `back_window_x = 130mm - 2 × 15mm = 100mm`
+- `back_window_y = 180mm - 2 × 15mm = 150mm`
+- `back_frame_w = 15mm` (each side border)
+- `back_frame_h = 15mm` (each top/bottom border)
 
 #### 5. Guide Fudge
 - **`guide_fudge`** (default: 2.0mm): Clearance added to the middle layer pocket to help the art piece fit
@@ -52,10 +57,7 @@ These three sets of measurements define your frame:
 **Example:** With `guide_fudge = 2mm` and `art_piece_x = 110mm`:
 - Pocket width = `110mm + 2mm = 112mm`
 
-#### 6. Split Options
-- **`split_front`** (default: True): Split front layer into 4 puzzle pieces (top, bottom, left, right)
-- **`split_base`** (default: False): Split base layer into 4 puzzle pieces (top, bottom, left, right)
-- **`split_middle`** (default: True, not exposed in UI): Split middle layer into 4 pieces
+**Note:** The front and base layers are always split into 4 puzzle pieces (top, bottom, left, right) to save material. This is not configurable.
 
 ## Calculated Dimensions
 
@@ -68,19 +70,21 @@ The generator automatically calculates these values from your inputs:
 **Example:** With `outside_x = 130mm` and `window_x = 90mm`:
 - `frame_w = (130mm - 90mm) / 2 = 20mm` (each side border)
 
-### Back Window (Base Layer)
-- **`back_window_x`** = `art_piece_x - 2 × frame_overlap`
-- **`back_window_y`** = `art_piece_y - 2 × frame_overlap`
-
-**Example:** With `art_piece_x = 110mm` and `frame_overlap = 5mm`:
-- `back_window_x = 110mm - 2 × 5mm = 100mm`
-
 ### Back Frame Borders (Base Layer)
-- **`back_frame_w`** = `(outside_x - back_window_x) / 2` - Width of side borders on back
-- **`back_frame_h`** = `(outside_y - back_window_y) / 2` - Height of top/bottom borders on back
+- **`back_frame_w`** = `base_thickness` - Width of side borders on back
+- **`back_frame_h`** = `base_thickness` - Height of top/bottom borders on back
 
-**Example:** With `outside_x = 130mm` and `back_window_x = 100mm`:
-- `back_frame_w = (130mm - 100mm) / 2 = 15mm` (each side border)
+**Example:** With `base_thickness = 15mm`:
+- `back_frame_w = 15mm` (each side border)
+- `back_frame_h = 15mm` (each top/bottom border)
+
+### Back Window (Base Layer)
+- **`back_window_x`** = `outside_x - 2 × base_thickness`
+- **`back_window_y`** = `outside_y - 2 × base_thickness`
+
+**Example:** With `outside_x = 130mm`, `outside_y = 180mm`, and `base_thickness = 15mm`:
+- `back_window_x = 130mm - 2 × 15mm = 100mm`
+- `back_window_y = 180mm - 2 × 15mm = 150mm`
 
 ### Middle Layer Pocket
 - **`pocket_x`** = `art_piece_x + guide_fudge` - Pocket width
@@ -94,19 +98,10 @@ The generator automatically calculates these values from your inputs:
 
 ## Output Pieces
 
-The generator creates pieces for three layers:
+The generator creates pieces for three layers. Front and base layers are always split into puzzle pieces.
 
 ### Front Layer
 
-#### Unsplit Mode (`split_front = False`)
-- **1 piece:** Full front panel with rectangular window cutout
-  - Dimensions: `outside_x × outside_y`
-  - Window: `window_x × window_y` centered
-
-**Example Output:**
-- Front panel: 130mm × 180mm with 90mm × 140mm window
-
-#### Split Mode (`split_front = True`)
 - **4 pieces:** Puzzle-style border pieces
   - Top border: `outside_x × frame_h` with angled corners
   - Bottom border: `outside_x × frame_h` with angled corners
@@ -144,23 +139,11 @@ The generator creates pieces for three layers:
 
 ### Base/Back Layer
 
-#### Unsplit Mode (`split_base = False`)
-- **1 piece:** Full back panel with smaller window and registration marks
-  - Dimensions: `outside_x × outside_y`
-  - Window: `back_window_x × back_window_y` centered
-  - Registration rectangle: `art_piece_x × art_piece_y` (etched, not cut)
-  - Optional mounting holes
-
-**Example Output:**
-- Back panel: 130mm × 180mm with 100mm × 150mm window
-- Registration marks for 110mm × 160mm art piece
-
-#### Split Mode (`split_base = True`)
-- **4 pieces:** Puzzle-style border pieces (thicker than front)
-  - Top border: `outside_x × back_frame_h` with angled corners
-  - Bottom border: `outside_x × back_frame_h` with angled corners
-  - Left border: `back_frame_w × outside_y` with angled corners
-  - Right border: `back_frame_w × outside_y` with angled corners
+- **4 pieces:** Puzzle-style border pieces (thickness defined by `base_thickness`)
+  - Top border: `outside_x × base_thickness` with angled corners
+  - Bottom border: `outside_x × base_thickness` with angled corners
+  - Left border: `base_thickness × outside_y` with angled corners
+  - Right border: `base_thickness × outside_y` with angled corners
 
 **Example Output:**
 - Top border: 130mm × 15mm
@@ -187,20 +170,18 @@ window_x = 90mm        (visible area)
 window_y = 140mm       (visible area)
 outside_x = 130mm      (total frame width)
 outside_y = 180mm      (total frame height)
-frame_overlap = 5mm
+base_thickness = 15mm  (thickness of base pieces)
 guide_fudge = 2mm
-split_front = True
-split_base = False
 ```
 
 **Calculated Values:**
 ```
 frame_w = (130 - 90) / 2 = 20mm        (side borders)
 frame_h = (180 - 140) / 2 = 20mm       (top/bottom borders)
-back_window_x = 110 - 2×5 = 100mm      (back window width)
-back_window_y = 160 - 2×5 = 150mm      (back window height)
-back_frame_w = (130 - 100) / 2 = 15mm  (back side borders)
-back_frame_h = (180 - 150) / 2 = 15mm  (back top/bottom borders)
+back_frame_w = 15mm                     (back side borders, from base_thickness)
+back_frame_h = 15mm                     (back top/bottom borders, from base_thickness)
+back_window_x = 130 - 2×15 = 100mm     (back window width)
+back_window_y = 180 - 2×15 = 150mm     (back window height)
 pocket_x = 110 + 2 = 112mm              (pocket width)
 pocket_y = 160 + 2 = 162mm              (pocket height)
 guide_w = (130 - 112) / 2 = 9mm        (guide wall width)
@@ -209,7 +190,7 @@ guide_h = (180 - 162) / 2 = 9mm        (guide wall height)
 
 **Output Pieces:**
 
-**Front Layer (Split):**
+**Front Layer (Always Split):**
 - Top border: 130mm × 20mm (with angled puzzle corners)
 - Bottom border: 130mm × 20mm (with angled puzzle corners)
 - Left border: 20mm × 180mm (with angled puzzle corners)
@@ -220,9 +201,11 @@ guide_h = (180 - 162) / 2 = 9mm        (guide wall height)
 - Left guide: 9mm × 162mm
 - Right guide: 9mm × 162mm
 
-**Base Layer (Unsplit):**
-- Back panel: 130mm × 180mm with 100mm × 150mm window
-- Registration marks for 110mm × 160mm art piece
+**Base Layer (Always Split):**
+- Top border: 130mm × 15mm (with angled puzzle corners)
+- Bottom border: 130mm × 15mm (with angled puzzle corners)
+- Left border: 15mm × 180mm (with angled puzzle corners)
+- Right border: 15mm × 180mm (with angled puzzle corners)
 
 **Reference:**
 - Art piece outline: 110mm × 160mm
@@ -231,10 +214,15 @@ guide_h = (180 - 162) / 2 = 9mm        (guide wall height)
 
 Splitting layers saves material by allowing you to cut pieces from smaller scraps:
 
-**Unsplit Front:** Requires one 130mm × 180mm piece
-**Split Front:** Can use:
+**Unsplit Front (not available):** Would require one 130mm × 180mm piece
+**Split Front (always used):** Can use:
 - Two 130mm × 20mm pieces (top/bottom)
 - Two 20mm × 180mm pieces (sides)
+
+**Unsplit Base (not available):** Would require one 130mm × 180mm piece
+**Split Base (always used):** Can use:
+- Two 130mm × 15mm pieces (top/bottom)
+- Two 15mm × 180mm pieces (sides)
 
 This allows you to use leftover material from other projects!
 
@@ -243,7 +231,7 @@ This allows you to use leftover material from other projects!
 1. **Art Piece Size:** Measure your actual artwork including any borders or mats you plan to include
 2. **Window Size:** Should be smaller than art piece to create a border effect
 3. **Outside Size:** Determines the overall frame size - choose based on your display space
-4. **Frame Overlap:** 5mm is usually sufficient to hold the art piece securely
+4. **Base Thickness:** Choose based on how much you want the base pieces to overlap the art piece. A thickness of 15-20mm is usually sufficient to hold the art piece securely. The back window will be `outside_x - 2 × base_thickness` wide.
 5. **Guide Fudge:** 2mm provides enough clearance for easy insertion without being too loose
 
 ## Validation
@@ -255,4 +243,3 @@ The generator validates that:
 - Calculated frame borders are positive
 
 If validation fails, you'll get an error message with details about what's wrong.
-
