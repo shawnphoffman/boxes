@@ -39,9 +39,6 @@ class Dimensions:
     outside_x: float
     outside_y: float
     frame_overlap: float
-    split_front_param: bool
-    split_middle_param: bool
-    split_base_param: bool
     guide_fudge: float = 2.0
 
     def __post_init__(self):
@@ -121,30 +118,6 @@ class Dimensions:
         """
         return self.base_y / 2
 
-    @property
-    def split_base(self):
-        return self.split_base_param
-
-    @property
-    def unsplit_base(self):
-        return not self.split_base_param
-
-    @property
-    def split_middle(self):
-        return self.split_middle_param
-
-    @property
-    def unsplit_middle(self):
-        return not self.split_middle_param
-
-    @property
-    def split_front(self):
-        return self.split_front_param
-
-    @property
-    def unsplit_front(self):
-        return not self.split_front_param
-
     def check(self):
         art_info = f"Art piece: {self.art_piece_x:.0f} x {self.art_piece_y:.0f}"
         window_info = f"Viewing window: {self.window_x:.0f} x {self.window_y:.0f}"
@@ -197,7 +170,7 @@ class Dimensions:
 
 class PhotoFrameSplit(Boxes):
     """
-    Simplified 3-layer photo frame generator.
+    Simplified 3-layer photo frame generator with split front and base to save material.
     """
 
     ui_group = "Misc"
@@ -212,12 +185,12 @@ This generator creates a 3-layer photo frame with simplified measurements:
 * **Outside dimensions**: Total outside size of the frame
 
 The frame consists of:
-* **Front layer**: Has a window cutout showing your artwork. Can be split into puzzle pieces to save material.
-* **Middle layer**: Creates a rectangular pocket to hold the art piece in place.
-* **Back/base layer**: Has a smaller window than the front to ensure the art piece is contained. Can be split to save material.
+* **Front layer**: Split into 4 puzzle pieces (top, bottom, left, right) to save material
+* **Middle layer**: Creates a rectangular pocket to hold the art piece in place
+* **Back/base layer**: Split into 4 puzzle pieces (top, bottom, left, right) to save material. Has a smaller window than the front to ensure the art piece is contained
 
 Features:
-* Split front and base layers into thin rectangles to save material
+* Front and base layers are always split into thin rectangles to save material
 * Middle layer creates a pocket for the art piece
 * Adds holes for hanging the frame on the wall
 """
@@ -229,9 +202,6 @@ Features:
     outside_x = 130
     outside_y = 180
     frame_overlap = 5.0
-    split_base = False
-    split_middle = True  # not exposed in the UI
-    split_front = True
     mount_hole_dia = 6.0
     guide_fudge = 2.0
 
@@ -251,9 +221,6 @@ Features:
             outside_x=self.outside_x,
             outside_y=self.outside_y,
             frame_overlap=self.frame_overlap,
-            split_base_param=self.split_base,
-            split_middle_param=self.split_middle,
-            split_front_param=self.split_front,
             guide_fudge=self.guide_fudge,
         )
 
@@ -266,16 +233,7 @@ Features:
         """
         Render the middle layer of the frame, which creates a rectangular pocket for the art piece.
         """
-
-        stack_n = 1
-
-        if self.d.unsplit_middle:
-            for _ in range(stack_n):
-                self.middle_unsplit()
-
-        if self.d.split_middle:
-            for _ in range(stack_n):
-                self.middle_split()
+        self.middle_split()
 
     def middle_split(self):
         lyr = "Middle"
@@ -288,34 +246,9 @@ Features:
         self.rectangularWall(d.pocket_y, d.guide_w, "edee", move=move, label=f"{lyr} side {d.guide_w:.0f}x{d.pocket_y:.0f}")
         self.rectangularWall(d.pocket_y, d.guide_w, "edee", move=move, label=f"{lyr} side {d.guide_w:.0f}x{d.pocket_y:.0f}")
 
-    def middle_unsplit(self):
-        lyr = "Middle"
-        d = self.d
-        dims_str = f"{lyr} {d.base_x:.0f}x{d.base_y:.0f} with pocket {d.pocket_x:.0f}x{d.pocket_y:.0f} for art {d.art_piece_x:.0f}x{d.art_piece_y:.0f}"
-        border_str = f"Widths {d.guide_w:.0f}x {d.guide_h:.0f}y fudge {d.guide_fudge:.0f}"
-        label = f"{dims_str}\n{border_str}"
-
-        # start at bottom left
-        poly = [d.base_x, 90, d.base_y, 90, d.guide_w, 90, d.pocket_y, -90, d.pocket_x, -90, d.pocket_y, 90, d.guide_w, 90, d.base_y, 90]
-        self.polygonWall(poly, "eeee", move="up", label=label)
-
     # FRONT LAYER
     def render_front(self):
-        if self.d.unsplit_front:
-            self.front_unsplit()
-
-        if self.d.split_front:
-            self.front_split()
-
-    def front_unsplit(self):
-        lyr = "Front"
-        d = self.d
-        dims_str = f"{lyr} {d.base_x:.0f}x{d.base_y:.0f} - {d.window_x:.0f}x{d.window_y:.0f}"
-        border_str = f"Widths {d.frame_w:.0f}x {d.frame_h:.0f}y {d.frame_overlap:.0f} overlap"
-        label = f"{dims_str}\n{border_str}"
-
-        callback = [lambda: self.rectangularHole(d.centre_x, d.centre_y, d.window_x, d.window_y)]
-        self.rectangularWall(d.base_x, d.base_y, "eeee", callback=callback, move="up", label=label)
+        self.front_split()
 
     def front_split(self):
         lyr = "Front"
@@ -336,11 +269,7 @@ Features:
 
     # BASE LAYER
     def render_base(self):
-        if self.d.unsplit_base:
-            self.base_unsplit()
-
-        if self.d.split_base:
-            self.base_split()
+        self.base_split()
 
     def base_split(self):
         lyr = "Base"
@@ -364,18 +293,6 @@ Features:
         for bit in "LR":
             label = f"{lyr} side {bit} {new_frame_w:.0f}x{d.base_y:.0f}"
             self.polygonWall(sides, "eDeD", move="up", label=label)
-
-    def base_unsplit(self):
-        d = self.d
-        label = f"Base {d.base_x:.0f}x{d.base_y:.0f} for art {d.art_piece_x:.0f}x{d.art_piece_y:.0f}"
-
-        callback = [lambda: self.photo_registration_rectangle(), None, None, None]
-        holes = self.edgesettings.get("Mounting", {}).get("num", 0)
-        self.rectangularWall(d.base_x, d.base_y, "eeGe" if holes else "eeee", callback=callback, move="up", label=label)
-
-        # I can't work out the interface for roundedPlate with edge settings other than "e"
-        # so no rounded corners for you!
-        # self.roundedPlate(d.base_x, d.base_y, d.corner_radius, "e", callback, extend_corners=False, move="up", label=label)
 
     def photo_registration_rectangle(self):
         """
@@ -472,27 +389,6 @@ Features:
             type=float,
             default=self.guide_fudge,
             help="Clearance in the middle layer pocket for the art piece",
-        )
-        self.argparser.add_argument(
-            "--split_front",
-            action="store",
-            type=BoolArg(),
-            default=self.split_front,
-            help="Split front into thin rectangles to save material",
-        )
-        # self.argparser.add_argument(
-        #     "--split_middle",
-        #     action="store",
-        #     type=BoolArg(),
-        #     default=self.split_middle,
-        #     help="Split middle into thin rectangles to save material",
-        # )
-        self.argparser.add_argument(
-            "--split_base",
-            action="store",
-            type=BoolArg(),
-            default=self.split_base,
-            help="Split base into thin rectangles to save material",
         )
 
     def render_photo(self):
