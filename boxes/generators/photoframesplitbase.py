@@ -39,7 +39,9 @@ class Dimensions:
     outside_x: float
     outside_y: float
     base_thickness: float
-    guide_fudge: float = 2.0
+    guide_fudge_x: float = 2.0
+    guide_fudge_y: float = 0.0
+    name: str = ""
 
     def __post_init__(self):
         self.check()
@@ -87,12 +89,12 @@ class Dimensions:
     @property
     def pocket_x(self):
         """Width of the pocket in middle layer for art piece"""
-        return self.art_piece_x + self.guide_fudge
+        return self.art_piece_x + self.guide_fudge_x
 
     @property
     def pocket_y(self):
         """Height of the pocket in middle layer for art piece"""
-        return self.art_piece_y + self.guide_fudge
+        return self.art_piece_y + self.guide_fudge_y
 
     @property
     def guide_w(self):
@@ -103,6 +105,11 @@ class Dimensions:
     def guide_h(self):
         """Height of the guide walls in middle layer"""
         return (self.outside_y - self.pocket_y) / 2
+
+    @property
+    def middle_side_h(self):
+        """Height of the middle layer side pieces; spans from top of bottom to top of frame"""
+        return self.outside_y - self.guide_h
 
     @property
     def centre_x(self):
@@ -118,6 +125,14 @@ class Dimensions:
         """
         return self.base_y / 2
 
+    @property
+    def design_name(self):
+        """Human-readable name for the current design, e.g. 'projABC - Art piece 204x254'"""
+        base = f"Art piece {self.art_piece_x:.0f}x{self.art_piece_y:.0f}"
+        if self.name:
+            return f"{self.name} - {base}"
+        return base
+
     def check(self):
         art_info = f"Art piece: {self.art_piece_x:.0f} x {self.art_piece_y:.0f}"
         window_info = f"Viewing window: {self.window_x:.0f} x {self.window_y:.0f}"
@@ -125,7 +140,7 @@ class Dimensions:
         frame_info = f"Frame border: {self.frame_w:.0f} x {self.frame_h:.0f}"
         back_window_info = f"Back window: {self.back_window_x:.0f} x {self.back_window_y:.0f}"
         back_frame_info = f"Back frame border (base thickness): {self.back_frame_w:.0f}"
-        pocket_info = f"Pocket for art: {self.pocket_x:.0f} x {self.pocket_y:.0f} (fudge {self.guide_fudge:.0f})"
+        pocket_info = f"Pocket for art: {self.pocket_x:.0f} x {self.pocket_y:.0f} (fudge x={self.guide_fudge_x:.0f} y={self.guide_fudge_y:.0f})"
 
         info = [
             art_info,
@@ -180,23 +195,24 @@ class PhotoFrameSplit(Boxes):
     ui_group = "Misc"
 
     description = """
-Simplified photo frame generator.
+Simplified 3-layer photo frame generator with split pieces to save material.
 
-This generator creates a 3-layer photo frame with simplified measurements:
+**Input dimensions:**
 
-* **Art piece dimensions**: Total size of your art piece including any border content
-* **Window dimensions**: Size of the visible window in the front layer (what shows through)
-* **Outside dimensions**: Total outside size of the frame
+* **Art piece**: Total size of your art piece including any border/mat
+* **Window**: Visible area in the front layer (what shows through)
+* **Outside**: Total frame dimensions
+* **Base thickness**: Width of the base layer border (defines the back window)
+* **Guide fudge x/y**: Pocket clearance; vertical fudge defaults to 0 to align with window
+* **Name**: Optional prefix for piece labels (e.g. "projABC - Base top 130x15")
 
-The frame consists of:
-* **Front layer**: Split into 4 puzzle pieces (top, bottom, left, right) to save material
-* **Middle layer**: Creates a rectangular pocket to hold the art piece in place
-* **Back/base layer**: Split into 4 puzzle pieces (top, bottom, left, right) to save material. Has a smaller window than the front to ensure the art piece is contained
+**Layers:**
 
-Features:
-* Front and base layers are always split into thin rectangles to save material
-* Middle layer creates a pocket for the art piece
-* Adds holes for hanging the frame on the wall
+* **Front**: 4 puzzle pieces with angled corners (top, bottom, left, right)
+* **Middle**: 3 pieces (bottom bar + left/right sides) forming a rectangular pocket
+* **Base**: 4 puzzle pieces (top, bottom, left, right) with a smaller window than the front
+
+**Output:** 12 cut pieces plus an art piece reference outline with registration marks.
 """
 
     art_piece_x = 100
@@ -207,7 +223,9 @@ Features:
     outside_y = 180
     base_thickness = 15.0
     mount_hole_dia = 6.0
-    guide_fudge = 2.0
+    guide_fudge_x = 2.0
+    guide_fudge_y = 0.0
+    name = ""
 
     d = None
 
@@ -225,13 +243,17 @@ Features:
             outside_x=self.outside_x,
             outside_y=self.outside_y,
             base_thickness=self.base_thickness,
-            guide_fudge=self.guide_fudge,
+            guide_fudge_x=self.guide_fudge_x,
+            guide_fudge_y=self.guide_fudge_y,
+            name=self.name,
         )
 
         self.render_base()
         self.render_middle()
         self.render_front()
         self.render_photo()
+
+        self.metadata["design_name"] = self.d.design_name
 
     def render_middle(self):
         """
@@ -246,9 +268,11 @@ Features:
         edge_lengths = (d.guide_w, d.base_x - 2 * d.guide_w, d.guide_w)
         e = edges.CompoundEdge(self, edge_types, edge_lengths)
         move = "up"
-        self.rectangularWall(d.base_x, d.guide_h, ["e", "e", e, "e"], move=move, label=f"{lyr} btm {d.base_x:.0f}x{d.guide_h:.0f}")
-        self.rectangularWall(d.pocket_y, d.guide_w, "edee", move=move, label=f"{lyr} side {d.guide_w:.0f}x{d.pocket_y:.0f}")
-        self.rectangularWall(d.pocket_y, d.guide_w, "edee", move=move, label=f"{lyr} side {d.guide_w:.0f}x{d.pocket_y:.0f}")
+        lbl_btm = f"{d.name} - {lyr} btm {d.base_x:.0f}x{d.guide_h:.0f}" if d.name else f"{lyr} btm {d.base_x:.0f}x{d.guide_h:.0f}"
+        self.rectangularWall(d.base_x, d.guide_h, ["e", "e", e, "e"], move=move, label=lbl_btm)
+        lbl_side = f"{d.name} - {lyr} side {d.guide_w:.0f}x{d.middle_side_h:.0f}" if d.name else f"{lyr} side {d.guide_w:.0f}x{d.middle_side_h:.0f}"
+        self.rectangularWall(d.middle_side_h, d.guide_w, "edee", move=move, label=lbl_side)
+        self.rectangularWall(d.middle_side_h, d.guide_w, "edee", move=move, label=lbl_side)
 
     # FRONT LAYER
     def render_front(self):
@@ -264,11 +288,11 @@ Features:
         sides = [d.base_y, 90 + 45, hypo_w, 90 - 45, d.base_y - 2 * d.frame_w, 90 - 45, hypo_w, None]
 
         for bit in ("top", "btm"):
-            label = f"{lyr} {bit} {d.base_x:.0f}x{d.frame_h:.0f}"
+            label = f"{d.name} - {lyr} {bit} {d.base_x:.0f}x{d.frame_h:.0f}" if d.name else f"{lyr} {bit} {d.base_x:.0f}x{d.frame_h:.0f}"
             self.polygonWall(tops, "eded", move="up", label=label)
 
         for bit in "LR":
-            label = f"{lyr} side {bit} {d.frame_w:.0f}x{d.base_y:.0f}"
+            label = f"{d.name} - {lyr} side {bit} {d.frame_w:.0f}x{d.base_y:.0f}" if d.name else f"{lyr} side {bit} {d.frame_w:.0f}x{d.base_y:.0f}"
             self.polygonWall(sides, "eDeD", move="up", label=label)
 
     # BASE LAYER
@@ -291,21 +315,25 @@ Features:
         sides = [d.base_y, 90 + 45, hypo_w, 90 - 45, d.base_y - 2 * new_frame_w, 90 - 45, hypo_w, None]
 
         for bit in ("top", "btm"):
-            label = f"{lyr} {bit} {d.base_x:.0f}x{new_frame_h:.0f}"
+            label = f"{d.name} - {lyr} {bit} {d.base_x:.0f}x{new_frame_h:.0f}" if d.name else f"{lyr} {bit} {d.base_x:.0f}x{new_frame_h:.0f}"
             self.polygonWall(tops, "eded", move="up", label=label)
 
         for bit in "LR":
-            label = f"{lyr} side {bit} {new_frame_w:.0f}x{d.base_y:.0f}"
+            label = f"{d.name} - {lyr} side {bit} {new_frame_w:.0f}x{d.base_y:.0f}" if d.name else f"{lyr} side {bit} {new_frame_w:.0f}x{d.base_y:.0f}"
             self.polygonWall(sides, "eDeD", move="up", label=label)
 
     def photo_registration_rectangle(self):
         """
-        Draw a rectangle with registration marks for the art piece
+        Draw a rectangle with registration marks for the art piece.
+        When used as a callback on the art piece wall, coordinates are local to that wall,
+        so the centre must be (art_piece_x/2, art_piece_y/2), not the frame centre.
         """
-
         d = self.d
         self.set_source_color(Color.ETCHING)
-        self.rectangular_etching(d.centre_x, d.centre_y, d.art_piece_x, d.art_piece_y)
+        # Centre of the current wall (art piece), not the full frame
+        cx = d.art_piece_x / 2.0
+        cy = d.art_piece_y / 2.0
+        self.rectangular_etching(cx, cy, d.art_piece_x, d.art_piece_y)
         self.ctx.stroke()
 
     def rectangular_etching(self, x, y, dx, dy, r=0.0, center_x=True, center_y=True):
@@ -388,16 +416,36 @@ Features:
             help="Thickness (width) of the base layer pieces",
         )
         self.argparser.add_argument(
-            "--guide_fudge",
+            "--guide_fudge_x",
             action="store",
             type=float,
-            default=self.guide_fudge,
-            help="Clearance in the middle layer pocket for the art piece",
+            default=self.guide_fudge_x,
+            help="Horizontal clearance in the middle layer pocket for the art piece",
+        )
+        self.argparser.add_argument(
+            "--guide_fudge_y",
+            action="store",
+            type=float,
+            default=self.guide_fudge_y,
+            help="Vertical clearance in the middle layer pocket (0 recommended to align with window)",
+        )
+        self.argparser.add_argument(
+            "--name",
+            action="store",
+            type=str,
+            default=self.name,
+            help="Name prefix for the design (e.g. 'projABC' yields 'projABC - Art piece 204x254')",
         )
 
     def render_photo(self):
         d = self.d
         self.set_source_color(Color.ANNOTATIONS)
-        label = f"Art piece {d.art_piece_x:.0f}x{d.art_piece_y:.0f}"
-        self.rectangularWall(d.art_piece_x, d.art_piece_y, "eeee", label=label, move="up")
+        self.rectangularWall(
+            d.art_piece_x,
+            d.art_piece_y,
+            "eeee",
+            callback=[lambda: self.photo_registration_rectangle(), None, None, None],
+            label=d.design_name,
+            move="up",
+        )
         self.set_source_color(Color.BLACK)

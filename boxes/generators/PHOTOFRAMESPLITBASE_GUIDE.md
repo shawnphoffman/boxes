@@ -51,13 +51,14 @@ These three sets of measurements define your frame:
 - `back_frame_w = 15mm` (each side border)
 - `back_frame_h = 15mm` (each top/bottom border)
 
-#### 5. Guide Fudge
-- **`guide_fudge`** (default: 2.0mm): Clearance added to the middle layer pocket to help the art piece fit
+#### 5. Guide Fudge (Horizontal and Vertical)
+- **`guide_fudge_x`** (default: 2.0mm): Horizontal clearance in the middle layer pocket to help the art piece fit
+- **`guide_fudge_y`** (default: 0.0mm): Vertical clearance in the middle layer pocket (0 recommended to align artwork with the window)
 
-**Example:** With `guide_fudge = 2mm` and `art_piece_x = 110mm`:
+**Example:** With `guide_fudge_x = 2mm` and `art_piece_x = 110mm`:
 - Pocket width = `110mm + 2mm = 112mm`
 
-**Note:** The front and base layers are always split into 4 puzzle pieces (top, bottom, left, right) to save material. This is not configurable.
+**Note:** Vertical fudge can cause the artwork to miss the intended window alignment, so it defaults to 0. The front and base layers are always split into 4 puzzle pieces (top, bottom, left, right) to save material. This is not configurable.
 
 ## Calculated Dimensions
 
@@ -87,14 +88,18 @@ The generator automatically calculates these values from your inputs:
 - `back_window_y = 180mm - 2 × 15mm = 150mm`
 
 ### Middle Layer Pocket
-- **`pocket_x`** = `art_piece_x + guide_fudge` - Pocket width
-- **`pocket_y`** = `art_piece_y + guide_fudge` - Pocket height
+- **`pocket_x`** = `art_piece_x + guide_fudge_x` - Pocket width
+- **`pocket_y`** = `art_piece_y + guide_fudge_y` - Pocket height
 - **`guide_w`** = `(outside_x - pocket_x) / 2` - Guide wall width
-- **`guide_h`** = `(outside_y - pocket_y) / 2` - Guide wall height
+- **`guide_h`** = `(outside_y - pocket_y) / 2` - Guide wall height (top/bottom bars)
+- **`middle_side_h`** = `outside_y - guide_h` - Height of the left/right side pieces (spans from top of bottom bar to top of frame)
 
-**Example:** With `art_piece_x = 110mm`, `guide_fudge = 2mm`, and `outside_x = 130mm`:
+**Example:** With `art_piece_x = 110mm`, `art_piece_y = 160mm`, `guide_fudge_x = 2mm`, `guide_fudge_y = 0mm`, `outside_x = 130mm`, and `outside_y = 180mm`:
 - `pocket_x = 110mm + 2mm = 112mm`
+- `pocket_y = 160mm + 0mm = 160mm`
 - `guide_w = (130mm - 112mm) / 2 = 9mm` (each guide wall)
+- `guide_h = (180mm - 160mm) / 2 = 10mm` (top/bottom bars)
+- `middle_side_h = 180mm - 10mm = 170mm` (side pieces)
 
 ## Output Pieces
 
@@ -122,20 +127,20 @@ The generator creates pieces for three layers. Front and base layers are always 
   - Pocket dimensions: `pocket_x × pocket_y`
   - Guide walls: `guide_w` wide on sides, `guide_h` tall on top/bottom
 
-**Example Output:**
-- Middle frame: 130mm × 180mm with 112mm × 162mm pocket
-- Guide walls: 9mm wide on sides, 9mm tall on top/bottom
+**Example Output:** (with guide_fudge_x=2, guide_fudge_y=0)
+- Middle frame: 130mm × 180mm with 112mm × 160mm pocket
+- Guide walls: 9mm wide on sides, 10mm tall on top/bottom
 
 #### Split Mode (`split_middle = True`)
-- **4 pieces:** Separate guide pieces
+- **3 pieces:** Separate guide pieces
   - Bottom guide: `outside_x × guide_h`
-  - Left guide: `guide_w × pocket_y`
-  - Right guide: `guide_w × pocket_y`
+  - Left guide: `guide_w × middle_side_h`
+  - Right guide: `guide_w × middle_side_h`
 
-**Example Output:**
-- Bottom guide: 130mm × 9mm
-- Left guide: 9mm × 162mm
-- Right guide: 9mm × 162mm
+**Example Output:** (with guide_fudge_x=2, guide_fudge_y=0)
+- Bottom guide: 130mm × 10mm
+- Left guide: 9mm × 170mm
+- Right guide: 9mm × 170mm
 
 ### Base/Back Layer
 
@@ -164,14 +169,15 @@ The generator creates pieces for three layers. Front and base layers are always 
 
 **Inputs:**
 ```
-art_piece_x = 110mm    (photo + border)
-art_piece_y = 160mm    (photo + border)
-window_x = 90mm        (visible area)
-window_y = 140mm       (visible area)
-outside_x = 130mm      (total frame width)
-outside_y = 180mm      (total frame height)
-base_thickness = 15mm  (thickness of base pieces)
-guide_fudge = 2mm
+art_piece_x = 110mm      (photo + border)
+art_piece_y = 160mm      (photo + border)
+window_x = 90mm          (visible area)
+window_y = 140mm         (visible area)
+outside_x = 130mm        (total frame width)
+outside_y = 180mm        (total frame height)
+base_thickness = 15mm    (thickness of base pieces)
+guide_fudge_x = 2mm      (horizontal clearance)
+guide_fudge_y = 0mm     (vertical clearance, 0 to align with window)
 ```
 
 **Calculated Values:**
@@ -183,9 +189,10 @@ back_frame_h = 15mm                     (back top/bottom borders, from base_thic
 back_window_x = 130 - 2×15 = 100mm     (back window width)
 back_window_y = 180 - 2×15 = 150mm     (back window height)
 pocket_x = 110 + 2 = 112mm              (pocket width)
-pocket_y = 160 + 2 = 162mm              (pocket height)
+pocket_y = 160 + 0 = 160mm              (pocket height)
 guide_w = (130 - 112) / 2 = 9mm        (guide wall width)
-guide_h = (180 - 162) / 2 = 9mm        (guide wall height)
+guide_h = (180 - 160) / 2 = 10mm       (top/bottom bar height)
+middle_side_h = 180 - 10 = 170mm      (side piece height)
 ```
 
 **Output Pieces:**
@@ -197,9 +204,9 @@ guide_h = (180 - 162) / 2 = 9mm        (guide wall height)
 - Right border: 20mm × 180mm (with angled puzzle corners)
 
 **Middle Layer (Split):**
-- Bottom guide: 130mm × 9mm
-- Left guide: 9mm × 162mm
-- Right guide: 9mm × 162mm
+- Bottom guide: 130mm × 10mm
+- Left guide: 9mm × 170mm
+- Right guide: 9mm × 170mm
 
 **Base Layer (Always Split):**
 - Top border: 130mm × 15mm (with angled puzzle corners)
@@ -232,7 +239,7 @@ This allows you to use leftover material from other projects!
 2. **Window Size:** Should be smaller than art piece to create a border effect
 3. **Outside Size:** Determines the overall frame size - choose based on your display space
 4. **Base Thickness:** Choose based on how much you want the base pieces to overlap the art piece. A thickness of 15-20mm is usually sufficient to hold the art piece securely. The back window will be `outside_x - 2 × base_thickness` wide.
-5. **Guide Fudge:** 2mm provides enough clearance for easy insertion without being too loose
+5. **Guide Fudge X:** 2mm provides enough horizontal clearance for easy insertion without being too loose. **Guide Fudge Y:** Keep at 0 to align the artwork with the viewing window; vertical fudge can cause misalignment.
 
 ## Validation
 

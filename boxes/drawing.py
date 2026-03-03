@@ -429,7 +429,8 @@ class SVGSurface(Surface):
     def _add_metadata(self, root) -> None:
         md = self.metadata
 
-        title = "{group} - {name}".format(**md)
+        display_name = md.get("design_name") or "{group} - {name}".format(**md)
+        title = display_name
         creation_date: str = md["creation_date"].strftime("%Y-%m-%d %H:%M:%S")
 
         # Add Inkscape style rdf meta data
@@ -466,7 +467,7 @@ class SVGSurface(Surface):
         self._addTag(w, 'dc:description', desc)
 
         # title
-        self._addTag(root, "title", md["name"], True)
+        self._addTag(root, "title", title, True)
 
         # Add XML comment
         txt = """\n{name} - {short_description}\n""".format(**md)
