@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "boxesserver",
+      "runtimeExecutable": ".venv/bin/python",
+      "runtimeArgs": ["-m", "boxes.scripts.boxesserver", "--port", "8000"],
+      "port": 8000
+    }
+  ]
+}

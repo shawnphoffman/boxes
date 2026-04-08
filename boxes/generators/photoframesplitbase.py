@@ -17,7 +17,7 @@ import logging
 import math
 from dataclasses import dataclass, fields
 
-from boxes import Boxes, Color, edges
+from boxes import Boxes, Color, boolarg, edges
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,8 @@ class Dimensions:
     base_thickness: float
     guide_fudge_x: float = 2.0
     guide_fudge_y: float = 0.0
+    backing_enabled: bool = False
+    backing_margin: float = 5.0
     name: str = ""
 
     def __post_init__(self):
@@ -107,6 +109,16 @@ class Dimensions:
         return (self.outside_y - self.pocket_y) / 2
 
     @property
+    def backing_x(self):
+        """Width of the backing layer rectangle"""
+        return self.outside_x - 2 * self.backing_margin
+
+    @property
+    def backing_y(self):
+        """Height of the backing layer rectangle"""
+        return self.outside_y - 2 * self.backing_margin
+
+    @property
     def middle_side_h(self):
         """Height of the middle layer side pieces; spans from top of bottom to top of frame"""
         return self.outside_y - self.guide_h
@@ -152,6 +164,9 @@ class Dimensions:
             pocket_info,
         ]
 
+        if self.backing_enabled:
+            info.append(f"Backing: {self.backing_x:.0f} x {self.backing_y:.0f} (margin={self.backing_margin:.0f})")
+
         issues = []
 
         for field in fields(self):
@@ -181,6 +196,25 @@ class Dimensions:
         if self.back_window_y > self.outside_y:
             issues.append(f"Back window height {self.back_window_y:.0f} cannot be larger than outside height {self.outside_y:.0f}")
 
+        # Base layer window must be narrower than front layer window
+        if self.back_window_x >= self.window_x:
+            issues.append(
+                f"Base window width {self.back_window_x:.0f} must be narrower than front window width {self.window_x:.0f}. "
+                f"Increase base_thickness above {self.frame_w:.1f} (currently {self.base_thickness:.1f})"
+            )
+        if self.back_window_y >= self.window_y:
+            issues.append(
+                f"Base window height {self.back_window_y:.0f} must be narrower than front window height {self.window_y:.0f}. "
+                f"Increase base_thickness above {self.frame_h:.1f} (currently {self.base_thickness:.1f})"
+            )
+
+        # Backing layer validation
+        if self.backing_enabled:
+            if self.backing_x <= 0:
+                issues.append(f"Backing width {self.backing_x:.0f} must be positive. Decrease backing_margin (currently {self.backing_margin:.1f})")
+            if self.backing_y <= 0:
+                issues.append(f"Backing height {self.backing_y:.0f} must be positive. Decrease backing_margin (currently {self.backing_margin:.1f})")
+
         if issues:
             info_str = "\n".join(info)
             issues_str = "\n".join(issues)
@@ -195,24 +229,25 @@ class PhotoFrameSplit(Boxes):
     ui_group = "Misc"
 
     description = """
-Simplified 3-layer photo frame generator with split pieces to save material.
+Photo frame generator that splits each layer into interlocking pieces to save material.
 
 **Input dimensions:**
 
-* **Art piece**: Total size of your art piece including any border/mat
-* **Window**: Visible area in the front layer (what shows through)
-* **Outside**: Total frame dimensions
-* **Base thickness**: Width of the base layer border (defines the back window)
-* **Guide fudge x/y**: Pocket clearance; vertical fudge defaults to 0 to align with window
-* **Name**: Optional prefix for piece labels (e.g. "projABC - Base top 130x15")
+* **Art piece**: Total size of your art piece including any border or mat
+* **Window**: Visible opening in the front layer
+* **Outside**: Overall frame dimensions
+* **Base thickness**: Border width of the base layer (must be wider than the front border so the base window is smaller)
+* **Guide fudge x/y**: Extra clearance in the middle layer pocket for easy art insertion; vertical fudge defaults to 0 to keep alignment with the window
+* **Name**: Optional label prefix for pieces (e.g. "projABC")
 
-**Layers:**
+**Layers (front to back):**
 
-* **Front**: 4 puzzle pieces with angled corners (top, bottom, left, right)
-* **Middle**: 3 pieces (bottom bar + left/right sides) forming a rectangular pocket
-* **Base**: 4 puzzle pieces (top, bottom, left, right) with a smaller window than the front
+* **Front** — 4 mitered pieces (top, bottom, left, right) forming the visible frame. Typically cut from decorative wood.
+* **Middle** — 3 pieces (bottom rail + left/right sides) that create a pocket to hold the art piece. Open at the top for sliding the art in. Typically cut from MDF or draftboard.
+* **Base** — 4 mitered pieces (top, bottom, left, right) with a smaller opening than the front, holding the art and middle layer in place. Typically cut from MDF or draftboard.
+* **Backing** (optional) — A rectangle glued to the back of the base layer to enclose the frame. Typically cut from chipboard or similar thin stock.
 
-**Output:** 12 cut pieces plus an art piece reference outline with registration marks.
+**Output:** 11 pieces (+ 1 backing if enabled) plus an art piece outline with registration marks.
 """
 
     art_piece_x = 100
@@ -221,10 +256,11 @@ Simplified 3-layer photo frame generator with split pieces to save material.
     window_y = 140
     outside_x = 130
     outside_y = 180
-    base_thickness = 15.0
-    mount_hole_dia = 6.0
+    base_thickness = 25.0
     guide_fudge_x = 2.0
     guide_fudge_y = 0.0
+    backing_enabled = False
+    backing_margin = 5.0
     name = ""
 
     d = None
@@ -245,10 +281,14 @@ Simplified 3-layer photo frame generator with split pieces to save material.
             base_thickness=self.base_thickness,
             guide_fudge_x=self.guide_fudge_x,
             guide_fudge_y=self.guide_fudge_y,
+            backing_enabled=self.backing_enabled,
+            backing_margin=self.backing_margin,
             name=self.name,
         )
 
         self.render_base()
+        if self.backing_enabled:
+            self.render_backing()
         self.render_middle()
         self.render_front()
         self.render_photo()
@@ -302,7 +342,6 @@ Simplified 3-layer photo frame generator with split pieces to save material.
     def base_split(self):
         lyr = "Base"
         d = self.d
-        label = f"{lyr} (split) {d.base_x:.0f}x{d.base_y:.0f} for art {d.art_piece_x:.0f}x{d.art_piece_y:.0f}"
 
         # Use back_frame dimensions which are thicker to contain the art piece
         new_frame_h = d.back_frame_h
@@ -321,6 +360,18 @@ Simplified 3-layer photo frame generator with split pieces to save material.
         for bit in "LR":
             label = f"{d.name} - {lyr} side {bit} {new_frame_w:.0f}x{d.base_y:.0f}" if d.name else f"{lyr} side {bit} {new_frame_w:.0f}x{d.base_y:.0f}"
             self.polygonWall(sides, "eDeD", move="up", label=label)
+
+    # BACKING LAYER
+    def render_backing(self):
+        """
+        Render the backing layer — a rectangle glued to the back of the base
+        layer to enclose the frame. Inset by backing_margin on each side to
+        leave room for glue around the edges.
+        """
+        d = self.d
+        lyr = "Backing"
+        label = f"{d.name} - {lyr} {d.backing_x:.0f}x{d.backing_y:.0f}" if d.name else f"{lyr} {d.backing_x:.0f}x{d.backing_y:.0f}"
+        self.rectangularWall(d.backing_x, d.backing_y, "eeee", move="up", label=label)
 
     def photo_registration_rectangle(self):
         """
@@ -413,7 +464,7 @@ Simplified 3-layer photo frame generator with split pieces to save material.
             action="store",
             type=float,
             default=self.base_thickness,
-            help="Thickness (width) of the base layer pieces",
+            help="Thickness (width) of the base layer pieces. Must be larger than the front frame border to ensure the base window is narrower than the front window",
         )
         self.argparser.add_argument(
             "--guide_fudge_x",
@@ -428,6 +479,20 @@ Simplified 3-layer photo frame generator with split pieces to save material.
             type=float,
             default=self.guide_fudge_y,
             help="Vertical clearance in the middle layer pocket (0 recommended to align with window)",
+        )
+        self.argparser.add_argument(
+            "--backing_enabled",
+            action="store",
+            type=boolarg,
+            default=self.backing_enabled,
+            help="Add a backing layer rectangle (glued to back of base to enclose the frame)",
+        )
+        self.argparser.add_argument(
+            "--backing_margin",
+            action="store",
+            type=float,
+            default=self.backing_margin,
+            help="Inset from base layer edges for the backing rectangle (glue margin)",
         )
         self.argparser.add_argument(
             "--name",
