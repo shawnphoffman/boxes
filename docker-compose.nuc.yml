@@ -1,0 +1,64 @@
+x-common: &common
+  restart: unless-stopped
+  environment: &env
+    PUID: ${PUID:-1000}
+    PGID: ${PGID:-1000}
+    TZ: ${TZ:-America/Los_Angeles}
+  networks:
+    - proxy_net
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: 3
+  dns:
+    - 192.168.1.137
+    - 192.168.1.189
+  dns_search:
+    - lan.goober.house
+  dns_opt:
+    - ndots:1
+
+x-health: &health
+  interval: 5m
+  timeout: 10s
+  retries: 5
+  start_period: 1m
+
+# =================================================================
+networks:
+  proxy_net:
+    external: true
+
+# =================================================================
+services:
+  # ================================
+  # boxes
+  # ================================
+  boxes:
+    image: ghcr.io/shawnphoffman/boxes:master
+    container_name: boxes
+    <<: *common
+    environment:
+      <<: *env
+      STATIC_URL: /static
+    # ================================
+    healthcheck:
+      <<: *health
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+    # ================================
+    labels:
+      # TRAEFIK
+      - traefik.enable=true
+      - traefik.docker.network=proxy_net
+      - traefik.http.services.boxes.loadbalancer.server.port=8000
+      # HTTPS
+      - traefik.http.routers.boxes.rule=Host(`boxes.lan.goober.house`)
+      - traefik.http.routers.boxes.entrypoints=websecure
+      - traefik.http.routers.boxes.tls=true
+      - traefik.http.routers.boxes.tls.certresolver=cloudflare
+      # HTTP
+      - traefik.http.routers.boxes-http.entrypoints=web
+      - traefik.http.routers.boxes-http.rule=Host(`boxes.lan.goober.house`)
+      - traefik.http.routers.boxes-http.middlewares=redir-https
+      - traefik.http.middlewares.redir-https.redirectscheme.scheme=https
