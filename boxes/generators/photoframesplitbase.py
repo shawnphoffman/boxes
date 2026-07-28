@@ -17,7 +17,7 @@ import logging
 import math
 from dataclasses import dataclass, fields
 
-from boxes import Boxes, Color, boolarg, edges
+from boxes import Boxes, Color, boolarg, dimarg, edges
 
 logger = logging.getLogger(__name__)
 
@@ -29,17 +29,21 @@ class Dimensions:
     Uses three direct measurements:
     - art_piece_x, art_piece_y: Total size of art piece including border content
     - window_x, window_y: Size of visible window (what shows through front)
-    - outside_x, outside_y: Total outside dimensions of frame
+    - frame_width: Width of the visible front border on all four sides
+
+    The outside dimensions are derived from the window plus the frame border,
+    which keeps the border a consistent width on every side.
     """
 
     art_piece_x: float
     art_piece_y: float
     window_x: float
     window_y: float
-    outside_x: float
-    outside_y: float
+    frame_width: float
     base_thickness: float
     guide_fudge_x: float = 2.0
+    # Hardcoded to 0; vertical fudge misaligns the art against the window.
+    # Slated for removal once nothing depends on the field.
     guide_fudge_y: float = 0.0
     backing_enabled: bool = False
     backing_margin: float = 5.0
@@ -49,14 +53,24 @@ class Dimensions:
         self.check()
 
     @property
+    def outside_x(self):
+        """Total outside width of the frame (window plus a border on each side)"""
+        return self.window_x + 2 * self.frame_width
+
+    @property
+    def outside_y(self):
+        """Total outside height of the frame (window plus a border on each side)"""
+        return self.window_y + 2 * self.frame_width
+
+    @property
     def frame_w(self):
-        """Width of the frame border on sides (calculated from outside and window)"""
-        return (self.outside_x - self.window_x) / 2
+        """Width of the frame border on sides"""
+        return self.frame_width
 
     @property
     def frame_h(self):
-        """Height of the frame border on top/bottom (calculated from outside and window)"""
-        return (self.outside_y - self.window_y) / 2
+        """Height of the frame border on top/bottom"""
+        return self.frame_width
 
     @property
     def base_x(self):
@@ -148,8 +162,8 @@ class Dimensions:
     def check(self):
         art_info = f"Art piece: {self.art_piece_x:.0f} x {self.art_piece_y:.0f}"
         window_info = f"Viewing window: {self.window_x:.0f} x {self.window_y:.0f}"
-        outside_info = f"Outside dimensions: {self.outside_x:.0f} x {self.outside_y:.0f}"
-        frame_info = f"Frame border: {self.frame_w:.0f} x {self.frame_h:.0f}"
+        outside_info = f"Outside dimensions (derived): {self.outside_x:.0f} x {self.outside_y:.0f}"
+        frame_info = f"Frame border: {self.frame_width:.0f} on all sides"
         back_window_info = f"Back window: {self.back_window_x:.0f} x {self.back_window_y:.0f}"
         back_frame_info = f"Back frame border (base thickness): {self.back_frame_w:.0f}"
         pocket_info = f"Pocket for art: {self.pocket_x:.0f} x {self.pocket_y:.0f} (fudge x={self.guide_fudge_x:.0f} y={self.guide_fudge_y:.0f})"
@@ -183,29 +197,29 @@ class Dimensions:
                     issues.append(f"{name} must be positive")
 
         # Validate dimensions make sense
-        if self.window_x > self.outside_x:
-            issues.append(f"Window width {self.window_x:.0f} cannot be larger than outside width {self.outside_x:.0f}")
-        if self.window_y > self.outside_y:
-            issues.append(f"Window height {self.window_y:.0f} cannot be larger than outside height {self.outside_y:.0f}")
         if self.window_x > self.art_piece_x:
             issues.append(f"Window width {self.window_x:.0f} cannot be larger than art piece width {self.art_piece_x:.0f}")
         if self.window_y > self.art_piece_y:
             issues.append(f"Window height {self.window_y:.0f} cannot be larger than art piece height {self.art_piece_y:.0f}")
-        if self.back_window_x > self.outside_x:
-            issues.append(f"Back window width {self.back_window_x:.0f} cannot be larger than outside width {self.outside_x:.0f}")
-        if self.back_window_y > self.outside_y:
-            issues.append(f"Back window height {self.back_window_y:.0f} cannot be larger than outside height {self.outside_y:.0f}")
 
         # Base layer window must be narrower than front layer window
-        if self.back_window_x >= self.window_x:
+        if self.base_thickness <= self.frame_width:
             issues.append(
-                f"Base window width {self.back_window_x:.0f} must be narrower than front window width {self.window_x:.0f}. "
-                f"Increase base_thickness above {self.frame_w:.1f} (currently {self.base_thickness:.1f})"
+                f"base_thickness {self.base_thickness:.1f} must be larger than frame_width {self.frame_width:.1f} "
+                f"so the base window is narrower than the front window and can hold the art in place"
             )
-        if self.back_window_y >= self.window_y:
+
+        # The art pocket has to fit inside the outside dimensions
+        if self.guide_w < 0:
             issues.append(
-                f"Base window height {self.back_window_y:.0f} must be narrower than front window height {self.window_y:.0f}. "
-                f"Increase base_thickness above {self.frame_h:.1f} (currently {self.base_thickness:.1f})"
+                f"Art piece width {self.art_piece_x:.0f} (+{self.guide_fudge_x:.0f} fudge) does not fit inside "
+                f"outside width {self.outside_x:.0f}. Increase frame_width (currently {self.frame_width:.1f}) "
+                f"or window_x (currently {self.window_x:.0f})"
+            )
+        if self.guide_h < 0:
+            issues.append(
+                f"Art piece height {self.art_piece_y:.0f} does not fit inside outside height {self.outside_y:.0f}. "
+                f"Increase frame_width (currently {self.frame_width:.1f}) or window_y (currently {self.window_y:.0f})"
             )
 
         # Backing layer validation
@@ -235,10 +249,12 @@ Photo frame generator that splits each layer into interlocking pieces to save ma
 
 * **Art piece**: Total size of your art piece including any border or mat
 * **Window**: Visible opening in the front layer
-* **Outside**: Overall frame dimensions
-* **Base thickness**: Border width of the base layer (must be wider than the front border so the base window is smaller)
-* **Guide fudge x/y**: Extra clearance in the middle layer pocket for easy art insertion; vertical fudge defaults to 0 to keep alignment with the window
+* **Frame width**: Width of the visible front border, applied equally to all four sides. Outside dimensions are derived as window + 2 x frame width
+* **Base thickness**: Border width of the base layer (must be wider than the frame width so the base window is smaller)
+* **Guide fudge x**: Extra horizontal clearance in the middle layer pocket for easy art insertion
 * **Name**: Optional label prefix for pieces (e.g. "projABC")
+
+**Units:** every length accepts an optional unit suffix, so `6in`, `6"`, `15cm` and `150mm` all work. A bare number is millimetres.
 
 **Layers (front to back):**
 
@@ -254,11 +270,9 @@ Photo frame generator that splits each layer into interlocking pieces to save ma
     art_piece_y = 150
     window_x = 90
     window_y = 140
-    outside_x = 130
-    outside_y = 180
+    frame_width = 20.0
     base_thickness = 25.0
     guide_fudge_x = 2.0
-    guide_fudge_y = 0.0
     backing_enabled = False
     backing_margin = 5.0
     art_piece_enabled = False
@@ -277,11 +291,9 @@ Photo frame generator that splits each layer into interlocking pieces to save ma
             art_piece_y=self.art_piece_y,
             window_x=self.window_x,
             window_y=self.window_y,
-            outside_x=self.outside_x,
-            outside_y=self.outside_y,
+            frame_width=self.frame_width,
             base_thickness=self.base_thickness,
             guide_fudge_x=self.guide_fudge_x,
-            guide_fudge_y=self.guide_fudge_y,
             backing_enabled=self.backing_enabled,
             backing_margin=self.backing_margin,
             name=self.name,
@@ -415,72 +427,56 @@ Photo frame generator that splits each layer into interlocking pieces to save ma
             self.edge(d - 2 * r)
 
     def add_arguments(self):
-        # landlords seem to love using 8GA screws in masonry sleeves for wall mounts
-        self.addSettingsArgs(edges.MountingSettings, num=3, d_head=8.0, d_shaft=4.0)
         self.addSettingsArgs(edges.DoveTailSettings, size=2.0, depth=1.0)
         self.buildArgParser()
         self.argparser.add_argument(
             "--art_piece_x",
             action="store",
-            type=float,
+            type=dimarg,
             default=self.art_piece_x,
             help="Width of the art piece including border content",
         )
         self.argparser.add_argument(
             "--art_piece_y",
             action="store",
-            type=float,
+            type=dimarg,
             default=self.art_piece_y,
             help="Height of the art piece including border content",
         )
         self.argparser.add_argument(
             "--window_x",
             action="store",
-            type=float,
+            type=dimarg,
             default=self.window_x,
             help="Width of the visible window in the front layer",
         )
         self.argparser.add_argument(
             "--window_y",
             action="store",
-            type=float,
+            type=dimarg,
             default=self.window_y,
             help="Height of the visible window in the front layer",
         )
         self.argparser.add_argument(
-            "--outside_x",
+            "--frame_width",
             action="store",
-            type=float,
-            default=self.outside_x,
-            help="Total outside width of the frame",
-        )
-        self.argparser.add_argument(
-            "--outside_y",
-            action="store",
-            type=float,
-            default=self.outside_y,
-            help="Total outside height of the frame",
+            type=dimarg,
+            default=self.frame_width,
+            help="Width of the visible front border, applied equally to all four sides. Outside dimensions are derived from this plus the window",
         )
         self.argparser.add_argument(
             "--base_thickness",
             action="store",
-            type=float,
+            type=dimarg,
             default=self.base_thickness,
-            help="Thickness (width) of the base layer pieces. Must be larger than the front frame border to ensure the base window is narrower than the front window",
+            help="Thickness (width) of the base layer pieces. Must be larger than frame_width to ensure the base window is narrower than the front window",
         )
         self.argparser.add_argument(
             "--guide_fudge_x",
             action="store",
-            type=float,
+            type=dimarg,
             default=self.guide_fudge_x,
             help="Horizontal clearance in the middle layer pocket for the art piece",
-        )
-        self.argparser.add_argument(
-            "--guide_fudge_y",
-            action="store",
-            type=float,
-            default=self.guide_fudge_y,
-            help="Vertical clearance in the middle layer pocket (0 recommended to align with window)",
         )
         self.argparser.add_argument(
             "--art_piece_enabled",
@@ -499,7 +495,7 @@ Photo frame generator that splits each layer into interlocking pieces to save ma
         self.argparser.add_argument(
             "--backing_margin",
             action="store",
-            type=float,
+            type=dimarg,
             default=self.backing_margin,
             help="Inset from base layer edges for the backing rectangle (glue margin)",
         )

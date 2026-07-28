@@ -256,6 +256,52 @@ class BoolArg:
 boolarg = BoolArg()
 
 
+class DimArg:
+    """Length argument that accepts an optional unit suffix and returns mm.
+
+    Bare numbers are treated as mm, so existing values keep working.
+    Recognised suffixes: mm, cm, in, " (inch). Whitespace is ignored,
+    e.g. 6in, 6 in, 6", 15cm and 150mm are all valid.
+    """
+
+    units = {
+        "": 1.0,
+        "mm": 1.0,
+        "cm": 10.0,
+        "in": 25.4,
+        '"': 25.4,
+    }
+
+    def __call__(self, arg):
+        if isinstance(arg, (int, float)):
+            return float(arg)
+
+        s = str(arg).strip().lower()
+        if not s:
+            raise ValueError("Length may not be empty")
+
+        for suffix in ('"', "in", "cm", "mm"):
+            if s.endswith(suffix):
+                value, unit = s[:-len(suffix)].strip(), suffix
+                break
+        else:
+            value, unit = s, ""
+
+        try:
+            return float(value) * self.units[unit]
+        except ValueError:
+            raise ValueError(
+                f"Invalid length {arg!r}: expected a number optionally "
+                f"followed by mm, cm or in")
+
+    def inx(self, name, viewname, arg):
+        return ('        <param name="%s" type="string" gui-text="%s" gui-description=%s>%s</param>\n' %
+                (name, viewname, quoteattr(arg.help or viewname), arg.default))
+
+
+dimarg = DimArg()
+
+
 class HexHolesSettings(edges.Settings):
     """Settings for hexagonal hole patterns
 
