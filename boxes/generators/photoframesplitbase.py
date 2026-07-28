@@ -261,6 +261,7 @@ Photo frame generator that splits each layer into interlocking pieces to save ma
     guide_fudge_y = 0.0
     backing_enabled = False
     backing_margin = 5.0
+    art_piece_enabled = False
     name = ""
 
     d = None
@@ -291,7 +292,8 @@ Photo frame generator that splits each layer into interlocking pieces to save ma
             self.render_backing()
         self.render_middle()
         self.render_front()
-        self.render_photo()
+        if self.art_piece_enabled:
+            self.render_photo()
 
         self.metadata["design_name"] = self.d.design_name
 
@@ -479,6 +481,13 @@ Photo frame generator that splits each layer into interlocking pieces to save ma
             type=float,
             default=self.guide_fudge_y,
             help="Vertical clearance in the middle layer pocket (0 recommended to align with window)",
+        )
+        self.argparser.add_argument(
+            "--art_piece_enabled",
+            action="store",
+            type=boolarg,
+            default=self.art_piece_enabled,
+            help="Include the art piece outline rectangle in the output",
         )
         self.argparser.add_argument(
             "--backing_enabled",
