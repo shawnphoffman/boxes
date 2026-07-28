@@ -56,20 +56,37 @@ This works on the command line, in the web form, and in saved URLs.
 
 ### Advanced Parameters
 
-#### 4. Base Thickness
-- **`base_thickness`** (default: 15.0mm): Width/thickness of the base layer pieces
+#### 4. Base Overlap
+- **`base_overlap`** (default: 10.0mm): How far the base layer laps over the art piece on each side
 
-**How it works:** The base layer pieces have a specified thickness. The back window is calculated from the outside dimensions:
-- `back_window_x = outside_x - 2 × base_thickness`
-- `back_window_y = outside_y - 2 × base_thickness`
+**How it works:** The base layer sits behind the art with a smaller opening than
+the front, forming a lip that stops the art falling out the back. You specify
+how much that lip grips the art; the base border width is **derived**:
+
+```
+base_thickness = max(art_gap_x, art_gap_y) + base_overlap
+```
+
+where `art_gap_x = (outside_x - art_piece_x) / 2` is the distance from the outer
+edge in to the art piece edge (and likewise for y). The larger of the two gaps
+is used, because an asymmetric mat leaves different gaps horizontally and
+vertically and the lip has to hold on all four sides.
+
+Everything else follows from it:
 - `back_frame_w = base_thickness` (side borders)
 - `back_frame_h = base_thickness` (top/bottom borders)
+- `back_window_x = outside_x - 2 × base_thickness`
+- `back_window_y = outside_y - 2 × base_thickness`
 
-**Example:** With `base_thickness = 15mm`, `outside_x = 130mm`, and `outside_y = 180mm`:
-- `back_window_x = 130mm - 2 × 15mm = 100mm`
-- `back_window_y = 180mm - 2 × 15mm = 150mm`
-- `back_frame_w = 15mm` (each side border)
-- `back_frame_h = 15mm` (each top/bottom border)
+**Example:** With `art_piece = 100 × 150mm`, `outside = 130 × 180mm` and `base_overlap = 10mm`:
+- `art_gap_x = (130 - 100) / 2 = 15mm`, `art_gap_y = (180 - 150) / 2 = 15mm`
+- `base_thickness = max(15, 15) + 10 = 25mm`
+- `back_window_x = 130 - 2 × 25 = 80mm` (art overlaps it by 10mm each side)
+- `back_window_y = 180 - 2 × 25 = 130mm` (art overlaps it by 10mm each side)
+
+Because the border width is derived, the grip on the art stays at `base_overlap`
+no matter how you change `frame_width` or the art size. A wider frame simply
+produces wider base pieces.
 
 #### 5. Guide Fudge (Horizontal)
 - **`guide_fudge_x`** (default: 2.0mm): Horizontal clearance in the middle layer pocket to help the art piece fit
@@ -97,20 +114,24 @@ The generator automatically calculates these values from your inputs:
 Both equal `frame_width`, which is what keeps the border consistent on all four sides.
 
 ### Back Frame Borders (Base Layer)
+- **`art_gap_x`** = `(outside_x - art_piece_x) / 2` - Outer edge in to the art edge
+- **`art_gap_y`** = `(outside_y - art_piece_y) / 2` - Same, vertically
+- **`base_thickness`** = `max(art_gap_x, art_gap_y) + base_overlap` - Derived base border width
 - **`back_frame_w`** = `base_thickness` - Width of side borders on back
 - **`back_frame_h`** = `base_thickness` - Height of top/bottom borders on back
 
-**Example:** With `base_thickness = 15mm`:
-- `back_frame_w = 15mm` (each side border)
-- `back_frame_h = 15mm` (each top/bottom border)
+**Example:** With `art_piece = 100 × 150mm`, `outside = 130 × 180mm` and `base_overlap = 10mm`:
+- `art_gap_x = 15mm`, `art_gap_y = 15mm`
+- `base_thickness = 15 + 10 = 25mm`
+- `back_frame_w = back_frame_h = 25mm`
 
 ### Back Window (Base Layer)
 - **`back_window_x`** = `outside_x - 2 × base_thickness`
 - **`back_window_y`** = `outside_y - 2 × base_thickness`
 
-**Example:** With `outside_x = 130mm`, `outside_y = 180mm`, and `base_thickness = 15mm`:
-- `back_window_x = 130mm - 2 × 15mm = 100mm`
-- `back_window_y = 180mm - 2 × 15mm = 150mm`
+**Example:** With `outside_x = 130mm`, `outside_y = 180mm`, and `base_thickness = 25mm`:
+- `back_window_x = 130mm - 2 × 25mm = 80mm`
+- `back_window_y = 180mm - 2 × 25mm = 130mm`
 
 ### Middle Layer Pocket
 - **`pocket_x`** = `art_piece_x + guide_fudge_x` - Pocket width
@@ -189,7 +210,7 @@ art_piece_y = 160mm      (photo + border)
 window_x = 90mm          (visible area)
 window_y = 140mm         (visible area)
 frame_width = 20mm       (visible border, all four sides)
-base_thickness = 25mm    (thickness of base pieces, must exceed frame_width)
+base_overlap = 10mm      (how far the base laps over the art)
 guide_fudge_x = 2mm      (horizontal clearance)
 ```
 
@@ -199,10 +220,13 @@ outside_x = 90 + 2×20 = 130mm          (derived total width)
 outside_y = 140 + 2×20 = 180mm         (derived total height)
 frame_w = 20mm                          (side borders, = frame_width)
 frame_h = 20mm                          (top/bottom borders, = frame_width)
-back_frame_w = 25mm                     (back side borders, from base_thickness)
-back_frame_h = 25mm                     (back top/bottom borders, from base_thickness)
-back_window_x = 130 - 2×25 = 80mm      (back window width, narrower than window_x)
-back_window_y = 180 - 2×25 = 130mm     (back window height, narrower than window_y)
+art_gap_x = (130 - 110) / 2 = 10mm     (outer edge in to art edge)
+art_gap_y = (180 - 160) / 2 = 10mm
+base_thickness = max(10, 10) + 10 = 20mm  (derived from base_overlap)
+back_frame_w = 20mm                     (back side borders, from base_thickness)
+back_frame_h = 20mm                     (back top/bottom borders, from base_thickness)
+back_window_x = 130 - 2×20 = 90mm      (art laps over it by 10mm each side)
+back_window_y = 180 - 2×20 = 140mm     (art laps over it by 10mm each side)
 pocket_x = 110 + 2 = 112mm              (pocket width)
 pocket_y = 160mm                        (pocket height, no vertical fudge)
 guide_w = (130 - 112) / 2 = 9mm        (guide wall width)
@@ -224,10 +248,10 @@ middle_side_h = 180 - 10 = 170mm      (side piece height)
 - Right guide: 9mm × 170mm
 
 **Base Layer (Always Split):**
-- Top border: 130mm × 25mm (with angled puzzle corners)
-- Bottom border: 130mm × 25mm (with angled puzzle corners)
-- Left border: 25mm × 180mm (with angled puzzle corners)
-- Right border: 25mm × 180mm (with angled puzzle corners)
+- Top border: 130mm × 20mm (with angled puzzle corners)
+- Bottom border: 130mm × 20mm (with angled puzzle corners)
+- Left border: 20mm × 180mm (with angled puzzle corners)
+- Right border: 20mm × 180mm (with angled puzzle corners)
 
 **Reference:**
 - Art piece outline: 110mm × 160mm
@@ -243,8 +267,8 @@ Splitting layers saves material by allowing you to cut pieces from smaller scrap
 
 **Unsplit Base (not available):** Would require one 130mm × 180mm piece
 **Split Base (always used):** Can use:
-- Two 130mm × 25mm pieces (top/bottom)
-- Two 25mm × 180mm pieces (sides)
+- Two 130mm × 20mm pieces (top/bottom)
+- Two 20mm × 180mm pieces (sides)
 
 This allows you to use leftover material from other projects!
 
@@ -253,7 +277,7 @@ This allows you to use leftover material from other projects!
 1. **Art Piece Size:** Measure your actual artwork including any borders or mats you plan to include
 2. **Window Size:** Should be smaller than art piece to create a border effect
 3. **Frame Width:** Sets the visible border and, with the window, the overall frame size. Because it applies to all four sides, the border stays consistent without any arithmetic on your part.
-4. **Base Thickness:** Choose based on how much you want the base pieces to overlap the art piece. It must be larger than `frame_width` so the base window ends up narrower than the front window and actually retains the art. The back window will be `outside_x - 2 × base_thickness` wide.
+4. **Base Overlap:** How much of the art the base lip grips. 10mm is comfortable for most work; go higher for heavy or thick pieces, lower only on small frames where 10mm would eat the opening. You no longer size the base pieces yourself - the border width is derived, so the grip stays put when you change the frame.
 5. **Guide Fudge X:** 2mm provides enough horizontal clearance for easy insertion without being too loose.
 6. **Units:** Enter any length in inches if that is how you measured it - `6in`, `6"`, `15cm` and `150mm` are all accepted, and a bare number means millimetres.
 
@@ -262,7 +286,8 @@ This allows you to use leftover material from other projects!
 The generator validates that:
 - All dimensions are positive
 - Window dimensions are smaller than the art piece
-- `base_thickness` is larger than `frame_width`, so the base window is narrower than the front window
+- `base_overlap` is greater than zero, so the base actually retains the art
+- The derived back window is still positive
 - The art piece (plus horizontal fudge) fits inside the derived outside dimensions
 
 If validation fails, you'll get an error message with details about what's wrong.

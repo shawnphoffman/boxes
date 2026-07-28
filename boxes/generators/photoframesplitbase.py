@@ -40,7 +40,7 @@ class Dimensions:
     window_x: float
     window_y: float
     frame_width: float
-    base_thickness: float
+    base_overlap: float = 10.0
     guide_fudge_x: float = 2.0
     # Hardcoded to 0; vertical fudge misaligns the art against the window.
     # Slated for removal once nothing depends on the field.
@@ -71,6 +71,27 @@ class Dimensions:
     def frame_h(self):
         """Height of the frame border on top/bottom"""
         return self.frame_width
+
+    @property
+    def art_gap_x(self):
+        """Horizontal distance from the outer edge in to the art piece edge"""
+        return (self.outside_x - self.art_piece_x) / 2
+
+    @property
+    def art_gap_y(self):
+        """Vertical distance from the outer edge in to the art piece edge"""
+        return (self.outside_y - self.art_piece_y) / 2
+
+    @property
+    def base_thickness(self):
+        """Border width of the base layer.
+
+        Derived so the base lip covers the art piece by base_overlap on every
+        side. The wider of the two art gaps is used, because an asymmetric mat
+        leaves different gaps horizontally and vertically and the overlap has
+        to hold on all four sides.
+        """
+        return max(self.art_gap_x, self.art_gap_y) + self.base_overlap
 
     @property
     def base_x(self):
@@ -165,7 +186,10 @@ class Dimensions:
         outside_info = f"Outside dimensions (derived): {self.outside_x:.0f} x {self.outside_y:.0f}"
         frame_info = f"Frame border: {self.frame_width:.0f} on all sides"
         back_window_info = f"Back window: {self.back_window_x:.0f} x {self.back_window_y:.0f}"
-        back_frame_info = f"Back frame border (base thickness): {self.back_frame_w:.0f}"
+        back_frame_info = (
+            f"Back frame border (derived): {self.back_frame_w:.0f} "
+            f"(art gap {max(self.art_gap_x, self.art_gap_y):.0f} + overlap {self.base_overlap:.0f})"
+        )
         pocket_info = f"Pocket for art: {self.pocket_x:.0f} x {self.pocket_y:.0f} (fudge x={self.guide_fudge_x:.0f} y={self.guide_fudge_y:.0f})"
 
         info = [
@@ -202,11 +226,16 @@ class Dimensions:
         if self.window_y > self.art_piece_y:
             issues.append(f"Window height {self.window_y:.0f} cannot be larger than art piece height {self.art_piece_y:.0f}")
 
-        # Base layer window must be narrower than front layer window
-        if self.base_thickness <= self.frame_width:
+        # The base lip has to actually grip the art
+        if self.base_overlap <= 0:
             issues.append(
-                f"base_thickness {self.base_thickness:.1f} must be larger than frame_width {self.frame_width:.1f} "
-                f"so the base window is narrower than the front window and can hold the art in place"
+                f"base_overlap {self.base_overlap:.1f} must be greater than zero, "
+                f"otherwise the base does not hold the art piece in"
+            )
+        if self.back_window_x <= 0 or self.back_window_y <= 0:
+            issues.append(
+                f"Back window {self.back_window_x:.0f} x {self.back_window_y:.0f} must be positive. "
+                f"Reduce base_overlap (currently {self.base_overlap:.1f})"
             )
 
         # The art pocket has to fit inside the outside dimensions
@@ -250,7 +279,7 @@ Photo frame generator that splits each layer into interlocking pieces to save ma
 * **Art piece**: Total size of your art piece including any border or mat
 * **Window**: Visible opening in the front layer
 * **Frame width**: Width of the visible front border, applied equally to all four sides. Outside dimensions are derived as window + 2 x frame width
-* **Base thickness**: Border width of the base layer (must be wider than the frame width so the base window is smaller)
+* **Base overlap**: How far the base layer laps over the art piece on each side to retain it. The base border width is derived from this, so it scales with the frame automatically
 * **Guide fudge x**: Extra horizontal clearance in the middle layer pocket for easy art insertion
 * **Name**: Optional label prefix for pieces (e.g. "projABC")
 
@@ -271,7 +300,7 @@ Photo frame generator that splits each layer into interlocking pieces to save ma
     window_x = 90
     window_y = 140
     frame_width = 20.0
-    base_thickness = 25.0
+    base_overlap = 10.0
     guide_fudge_x = 2.0
     backing_enabled = False
     backing_margin = 5.0
@@ -292,7 +321,7 @@ Photo frame generator that splits each layer into interlocking pieces to save ma
             window_x=self.window_x,
             window_y=self.window_y,
             frame_width=self.frame_width,
-            base_thickness=self.base_thickness,
+            base_overlap=self.base_overlap,
             guide_fudge_x=self.guide_fudge_x,
             backing_enabled=self.backing_enabled,
             backing_margin=self.backing_margin,
@@ -465,11 +494,11 @@ Photo frame generator that splits each layer into interlocking pieces to save ma
             help="Width of the visible front border, applied equally to all four sides. Outside dimensions are derived from this plus the window",
         )
         self.argparser.add_argument(
-            "--base_thickness",
+            "--base_overlap",
             action="store",
             type=dimarg,
-            default=self.base_thickness,
-            help="Thickness (width) of the base layer pieces. Must be larger than frame_width to ensure the base window is narrower than the front window",
+            default=self.base_overlap,
+            help="How far the base layer overlaps the art piece on each side to hold it in. The base border width is derived from this, so it tracks the frame size automatically",
         )
         self.argparser.add_argument(
             "--guide_fudge_x",
