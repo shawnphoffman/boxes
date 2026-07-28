@@ -382,6 +382,12 @@ class Boxes:
             choices=["loop", "corner", "backarc"],
             help="style for inner corners [\U0001F6C8](https://florianfesti.github.io/boxes/html/usermanual.html#inner-corners)")
         defaultgroup.add_argument(
+            "--text_as_paths", action="store", type=boolarg, default=False,
+            help="convert text to outlined paths in SVG output (for laser cutters that don't support fonts)")
+        defaultgroup.add_argument(
+            "--original_text", action="store", type=boolarg, default=False,
+            help="include original text elements alongside outlined paths (only applies when text_as_paths is enabled)")
+        defaultgroup.add_argument(
             "--burn", action="store", type=float, default=0.1,
             help='burn correction (in mm)(bigger values for tighter fit) [\U0001F6C8](https://florianfesti.github.io/boxes/html/usermanual.html#burn)')
         def spacing_type(x):
@@ -788,6 +794,8 @@ class Boxes:
         self.ctx = None
 
         self.surface.set_metadata(self.metadata)
+        self.surface.text_as_paths = getattr(self, "text_as_paths", False)
+        self.surface.original_text = getattr(self, "original_text", False)
 
         self.surface.flush()
         data = self.surface.finish(self.inner_corners)

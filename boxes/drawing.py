@@ -408,6 +408,8 @@ class Context:
 class SVGSurface(Surface):
 
     invert_y = True
+    text_as_paths = False
+    original_text = False
 
     fonts = {
         'serif' : 'TimesNewRoman, "Times New Roman", Times, Baskerville, Georgia, serif',
@@ -555,16 +557,42 @@ class SVGSurface(Surface):
                         font, bold, italic = params['ff']
                         fontweight = ("normal", "bold")[bool(bold)]
                         fontstyle = ("normal", "italic")[bool(italic)]
+                        color = rgb_to_svg_color(*params['rgb'])
+                        align = params.get('align', 'left')
 
-                        style = f"font-family: {font} ; font-weight: {fontweight}; font-style: {fontstyle}; fill: {rgb_to_svg_color(*params['rgb'])}"
-                        t = ET.SubElement(g, "text",
-                                          #x=f"{x:.3f}", y=f"{y:.3f}",
-                                          transform=f"matrix( {tm} )",
-                                          style=style)
-                        t.text = text
-                        t.set("font-size", f"{params['fs']}px")
-                        t.set("text-anchor", params.get('align', 'left'))
-                        t.set("dominant-baseline", 'hanging')
+                        if self.text_as_paths:
+                            from boxes.text_outline import text_to_svg_path_d
+                            path_d, tw, th = text_to_svg_path_d(
+                                text, style=font, bold=bold, italic=italic,
+                                font_size=params['fs'], align=align,
+                            )
+                            if path_d:
+                                align_offset = 0.0
+                                if align == "middle":
+                                    align_offset = -tw / 2
+                                elif align == "end":
+                                    align_offset = -tw
+                                if align_offset:
+                                    m_aligned = m * Affine.translation(align_offset, 0)
+                                    tm_aligned = " ".join(f"{m_aligned[i]:.3f}" for i in (0, 3, 1, 4, 2, 5))
+                                else:
+                                    tm_aligned = tm
+                                t = ET.SubElement(g, "path",
+                                                  d=path_d,
+                                                  transform=f"matrix( {tm_aligned} )")
+                                t.set("fill", color)
+                                t.set("stroke", "none")
+                                t.tail = "\n  "
+
+                        if not self.text_as_paths or self.original_text:
+                            style = f"font-family: {font} ; font-weight: {fontweight}; font-style: {fontstyle}; fill: {color}"
+                            t = ET.SubElement(g, "text",
+                                              transform=f"matrix( {tm} )",
+                                              style=style)
+                            t.text = text
+                            t.set("font-size", f"{params['fs']}px")
+                            t.set("text-anchor", align)
+                            t.set("dominant-baseline", 'hanging')
                     else:
                         print("Unknown", c)
 
