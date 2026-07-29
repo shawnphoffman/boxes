@@ -456,7 +456,12 @@ Photo frame generator that splits each layer into interlocking pieces to save ma
             self.edge(d - 2 * r)
 
     def add_arguments(self):
-        self.addSettingsArgs(edges.DoveTailSettings, size=2.0, depth=1.0)
+        # angle=15 instead of the stock 50: at 50 the tails bulge ~0.66mm per
+        # side wider than the socket mouth, so the seam only closes if the
+        # material compresses. Hardwood barely does and acrylic just cracks.
+        # 15 leaves ~0.18mm clearance per side (at 3mm stock) while keeping
+        # enough dovetail shape to key the seam while glue sets.
+        self.addSettingsArgs(edges.DoveTailSettings, size=2.0, depth=1.0, angle=15)
         self.buildArgParser()
         self.argparser.add_argument(
             "--art_piece_x",
